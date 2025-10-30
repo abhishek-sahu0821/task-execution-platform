@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import engine, get_db, Base
-from app.models import Task
+from app.models import Task, TaskStatus
 from app.schemas import TaskCreate, TaskResponse
 
 # Create database tables
@@ -41,3 +41,24 @@ def list_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """List all tasks"""
     tasks = db.query(Task).offset(skip).limit(limit).all()
     return tasks
+
+@app.post("/tasks/bulk", response_model=List[TaskResponse])
+def create_bulk_tasks(tasks: List[TaskCreate], db: Session = Depends(get_db)):
+    """Create multiple tasks at once"""
+    created_tasks = []
+    
+    for task_data in tasks:
+        db_task = Task(
+            name=task_data.name,
+            payload=task_data.payload,
+            status=TaskStatus.PENDING
+        )
+        db.add(db_task)
+        created_tasks.append(db_task)
+    
+    db.commit()
+    
+    for task in created_tasks:
+        db.refresh(task)
+    
+    return created_tasks
